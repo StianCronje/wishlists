@@ -12,14 +12,16 @@ const Register = () => {
     const submit = async (e: SyntheticEvent) => {
         e.preventDefault()
 
-        const form = new FormData()
-        form.append('name', name)
-        form.append('email', email)
-        form.append('password', password)
+        const request = {
+            name,
+            email,
+            password
+        }
 
-        const response = await fetch('/api/register/', {
+        const response = await fetch('/api/register', {
             method: 'POST',
-            body: form
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(request)
         })
 
         if(response.ok){

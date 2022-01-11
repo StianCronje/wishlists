@@ -15,14 +15,15 @@ const Login: React.FC<Props> = ({onLoggedIn}) => {
     const submit = async (e: SyntheticEvent) => {
         e.preventDefault()
 
-        const form = new FormData()
-        form.append('email', email)
-        form.append('password', password)
+        const request = {
+            email,
+            password
+        }
 
-        const response = await fetch('/api/login/', {
+        const response = await fetch('/api/login', {
             method: 'POST',
-            credentials: 'include',
-            body: form
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(request)
         })
 
         if(response.ok){

@@ -4,31 +4,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 	"wishlists/database"
+	"wishlists/helpers"
 	"wishlists/models"
 
-	"github.com/dgrijalva/jwt-go/v4"
 	"golang.org/x/crypto/bcrypt"
 )
 
 const secretKey string = "w1shl1st_4pp_s3cr3t"
 
 func Register(rw http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(0)
+	var data models.User
+	err := json.NewDecoder(r.Body).Decode(&data)
 
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(rw, err.Error())
+		fmt.Println(err)
 		return
 	}
 
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(r.FormValue("password")), 14)
-	user := models.User {
-		Name: r.FormValue("name"),
-		Email: r.FormValue("email"),
-		Password: hashedPassword,
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(data.Password), 14)
+	user := models.User{
+		Name: data.Name,
+		Email: data.Email,
+		Password: string(hashedPassword),
 	}
 
 	database.DB.Create(&user)
@@ -39,7 +39,8 @@ func Register(rw http.ResponseWriter, r *http.Request) {
 }
 
 func Login(rw http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(0)
+	var data models.User
+	err :=json.NewDecoder(r.Body).Decode(&data)
 
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -49,7 +50,7 @@ func Login(rw http.ResponseWriter, r *http.Request) {
 
 	var user models.User
 
-	database.DB.Where("email = ?", r.FormValue("email")).First(&user)
+	database.DB.Where("email = ?", data.Email).First(&user)
 
 	if user.ID == 0 {
 		rw.WriteHeader(http.StatusBadRequest)
@@ -57,7 +58,7 @@ func Login(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword(user.Password, []byte(r.FormValue("password")))
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(data.Password))
 	if err != nil {
 		rw.WriteHeader(http.StatusBadRequest)
 		fmt.Fprintf(rw, "Invalid username or password.")
@@ -65,13 +66,7 @@ func Login(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	expiresTime := time.Now().Add(time.Hour * 24)
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.StandardClaims{
-		Issuer: strconv.Itoa(int(user.ID)),
-		ExpiresAt: jwt.At(expiresTime),
-	})
-
-	secret := []byte(secretKey)
-	tokenString, err := token.SignedString(secret)
+	tokenString, err := helpers.CreateUserToken(user.ID, expiresTime)
 
 	if err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -107,30 +102,12 @@ func Logout(rw http.ResponseWriter, r *http.Request) {
 	http.SetCookie(rw, &cookie)
 	
 	rw.WriteHeader(http.StatusOK)
-	fmt.Fprintf(rw, "Success")
+	rw.Write([]byte{})
 	return
 }
 
 func GetUser(rw http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("jwt_token")
-	if err != nil {
-		rw.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprintf(rw, "Unauthenticated.")
-		return
-	}
-
-	token, err := jwt.ParseWithClaims(cookie.Value, &jwt.StandardClaims{}, func(t *jwt.Token) (interface{}, error) {
-		return []byte(secretKey), nil
-	})
-	if err != nil {
-		rw.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprintf(rw, "Unauthenticated. %v", err)
-		return
-	}
-
-	claims := token.Claims.(*jwt.StandardClaims)
-	var user models.User
-	database.DB.Where("id = ?", claims.Issuer).First(&user)
+	user := r.Context().Value("user").(models.User)
 
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)

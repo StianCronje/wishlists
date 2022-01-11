@@ -5,12 +5,7 @@ import Login from "./components/Login";
 import Register from "./components/Register";
 import Nav from "./components/Nav";
 import Home from "./pages/Home";
-
-export type User = {
-  id: number;
-  name: string;
-  email: string;
-};
+import { User } from "./entities/User";
 
 function App() {
   const [user, setUser] = useState<User>();
@@ -20,7 +15,7 @@ function App() {
   }, []);
 
   const getUser = async () => {
-    const response = await fetch("/api/user/", {
+    const response = await fetch("/api/user", {
       credentials: "include",
     });
 
@@ -28,10 +23,11 @@ function App() {
       const content = await response.json();
       setUser(content);
     }
-  }
+  };
 
-  const handleLoggedIn = async () => { 
-    await getUser() };
+  const handleLoggedIn = async () => {
+    await getUser();
+  };
 
   return (
     <div className="App">
